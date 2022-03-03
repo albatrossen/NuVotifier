@@ -23,11 +23,14 @@ import org.spongepowered.api.Sponge;
 import org.spongepowered.api.command.args.GenericArguments;
 import org.spongepowered.api.command.spec.CommandSpec;
 import org.spongepowered.api.config.ConfigDir;
+import org.spongepowered.api.entity.living.player.Player;
+import org.spongepowered.api.entity.living.player.User;
 import org.spongepowered.api.event.Listener;
 import org.spongepowered.api.event.game.GameReloadEvent;
 import org.spongepowered.api.event.game.state.GameStartedServerEvent;
 import org.spongepowered.api.event.game.state.GameStoppingServerEvent;
 import org.spongepowered.api.plugin.Plugin;
+import org.spongepowered.api.service.user.UserStorageService;
 import org.spongepowered.api.text.Text;
 
 import java.io.File;
@@ -35,6 +38,7 @@ import java.security.Key;
 import java.security.KeyPair;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 @Plugin(id = "nuvotifier", name = "NuVotifier", version = "@version@", authors = "Ichbinjoe",
         description = "Safe, smart, and secure Votifier server plugin")
@@ -257,6 +261,28 @@ public class NuVotifier implements VoteHandler, VotifierPlugin, ForwardedVoteLis
         return configDir;
     }
 
+    private final Vote mangleVote(final Vote vote){
+        if (vote.getUsername() == null)
+            return vote;
+        Optional<UserStorageService> optUserStorage = Sponge.getServiceManager().provide(UserStorageService.class);
+        if (optUserStorage.isEmpty())
+        {
+            return vote;
+        }
+        UserStorageService userStorage = optUserStorage.get();
+        Optional<User> player = userStorage.get(vote.getUsername());
+        if (player.isEmpty())
+        {
+            player = userStorage.get("." + vote.getUsername());
+        }
+        if (player.isEmpty() || player.get().getName().equals(vote.getUsername()))
+        {
+            return vote;
+        }
+        logger.info("Rewriting username from " + vote.getUsername() + " -> " + player.get().getName());
+        return new Vote(vote.getServiceName(), player.get().getName(), vote.getAddress(), vote.getTimeStamp(), vote.getAdditionalData());
+    }
+
     @Override
     public void onVoteReceived(final Vote vote, VotifierSession.ProtocolVersion protocolVersion, String remoteAddress) {
         if (debug) {
@@ -266,7 +292,7 @@ public class NuVotifier implements VoteHandler, VotifierPlugin, ForwardedVoteLis
                 logger.info("Got a protocol v2 vote record from " + remoteAddress + " -> " + vote);
             }
         }
-        this.fireVoteEvent(vote);
+        this.fireVoteEvent(mangleVote(vote));
     }
 
     @Override

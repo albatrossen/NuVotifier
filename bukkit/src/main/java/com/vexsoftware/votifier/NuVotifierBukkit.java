@@ -37,6 +37,7 @@ import com.vexsoftware.votifier.util.IOUtil;
 import com.vexsoftware.votifier.util.KeyCreator;
 import com.vexsoftware.votifier.util.TokenUtil;
 import org.bukkit.Bukkit;
+import org.bukkit.OfflinePlayer;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -333,12 +334,32 @@ public class NuVotifierBukkit extends JavaPlugin implements VoteHandler, Votifie
         return keyPair;
     }
 
+    private final Vote mangleVote(final Vote vote){
+        if (vote.getUsername() == null)
+            return vote;
+        OfflinePlayer player = getServer().getPlayer(vote.getUsername());
+        if (player == null)
+        {
+            player = getServer().getOfflinePlayer(vote.getUsername());
+        }
+        if (player == null)
+        {
+            player = getServer().getOfflinePlayer("." + vote.getUsername());
+        }
+        if (player == null || player.getName().equals(vote.getUsername()))
+        {
+            return vote;
+        }
+        getLogger().info("Rewriting username from " + vote.getUsername() + " -> " + player.getName());
+        return new Vote(vote.getServiceName(), player.getName(), vote.getAddress(), vote.getTimeStamp(), vote.getAdditionalData());
+    }
+
     @Override
     public void onVoteReceived(final Vote vote, VotifierSession.ProtocolVersion protocolVersion, String remoteAddress) {
         if (debug) {
             getLogger().info("Got a " + protocolVersion.humanReadable + " vote record from " + remoteAddress + " -> " + vote);
         }
-        Bukkit.getScheduler().runTask(this, () -> fireVotifierEvent(vote));
+        Bukkit.getScheduler().runTask(this, () -> fireVotifierEvent(mangleVote(vote)));
     }
 
     @Override
